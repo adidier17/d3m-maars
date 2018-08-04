@@ -1,0 +1,14 @@
+*.npy
+*.keras
+*/*
+./mayone/orthoimage.tar.gz
+./all_grayscale_image_array.out.npy
+./.git/objects/pack/tmp_pack_BySukg
+./.git/objects/pack/tmp_pack_4RcOCj
+./.git/objects/pack/pack-c3df989279541e1b19aef8f7d8846510f61fc363.pack
+./.git/objects/pack/tmp_pack_BmQMMa
+./april_orthoimage_timeseries_images.npy
+./maytwo_orthoimage_timeseries_images.npy
+./maytwo/orthoimage.tar.gz
+./grayscale_image_array.out.npy
+./mayone_orthoimage_timeseries_images.npy
