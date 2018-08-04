@@ -1,0 +1,45 @@
+nohup: ignoring input
+141617
+141617
+2018-07-19 11:05:50.466453: I tensorflow/core/platform/cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 FMA
+2018-07-19 11:05:53.476139: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1392] Found device 0 with properties: 
+name: GeForce GTX 1080 Ti major: 6 minor: 1 memoryClockRate(GHz): 1.582
+pciBusID: 0000:02:00.0
+totalMemory: 10.91GiB freeMemory: 10.75GiB
+2018-07-19 11:05:53.700082: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1392] Found device 1 with properties: 
+name: GeForce GTX 1080 Ti major: 6 minor: 1 memoryClockRate(GHz): 1.582
+pciBusID: 0000:03:00.0
+totalMemory: 10.91GiB freeMemory: 10.75GiB
+2018-07-19 11:05:53.925868: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1392] Found device 2 with properties: 
+name: GeForce GTX 1080 Ti major: 6 minor: 1 memoryClockRate(GHz): 1.582
+pciBusID: 0000:82:00.0
+totalMemory: 10.91GiB freeMemory: 10.75GiB
+2018-07-19 11:05:54.157222: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1392] Found device 3 with properties: 
+name: GeForce GTX 1080 Ti major: 6 minor: 1 memoryClockRate(GHz): 1.582
+pciBusID: 0000:83:00.0
+totalMemory: 10.91GiB freeMemory: 10.75GiB
+2018-07-19 11:05:54.158824: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1471] Adding visible gpu devices: 0, 1, 2, 3
+2018-07-19 11:05:55.250214: I tensorflow/core/common_runtime/gpu/gpu_device.cc:952] Device interconnect StreamExecutor with strength 1 edge matrix:
+2018-07-19 11:05:55.250331: I tensorflow/core/common_runtime/gpu/gpu_device.cc:958]      0 1 2 3 
+2018-07-19 11:05:55.250349: I tensorflow/core/common_runtime/gpu/gpu_device.cc:971] 0:   N Y N N 
+2018-07-19 11:05:55.250360: I tensorflow/core/common_runtime/gpu/gpu_device.cc:971] 1:   Y N N N 
+2018-07-19 11:05:55.250371: I tensorflow/core/common_runtime/gpu/gpu_device.cc:971] 2:   N N N Y 
+2018-07-19 11:05:55.250382: I tensorflow/core/common_runtime/gpu/gpu_device.cc:971] 3:   N N Y N 
+2018-07-19 11:05:55.251305: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1084] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:0 with 10403 MB memory) -> physical GPU (device: 0, name: GeForce GTX 1080 Ti, pci bus id: 0000:02:00.0, compute capability: 6.1)
+2018-07-19 11:05:55.346919: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1084] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:1 with 10403 MB memory) -> physical GPU (device: 1, name: GeForce GTX 1080 Ti, pci bus id: 0000:03:00.0, compute capability: 6.1)
+2018-07-19 11:05:55.442399: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1084] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:2 with 10403 MB memory) -> physical GPU (device: 2, name: GeForce GTX 1080 Ti, pci bus id: 0000:82:00.0, compute capability: 6.1)
+2018-07-19 11:05:55.537834: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1084] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:3 with 10403 MB memory) -> physical GPU (device: 3, name: GeForce GTX 1080 Ti, pci bus id: 0000:83:00.0, compute capability: 6.1)
+Traceback (most recent call last):
+  File "test_keras.py", line 168, in <module>
+    pmodel = multi_gpu_model(model, gpus=4)
+  File "/home1/05797/tg850969/.local/lib/python2.7/site-packages/tensorflow/python/keras/utils/multi_gpu_utils.py", line 252, in multi_gpu_model
+    return Model(model.inputs, merged)
+  File "/home1/05797/tg850969/.local/lib/python2.7/site-packages/tensorflow/python/keras/engine/training.py", line 111, in __init__
+    super(Model, self).__init__(*args, **kwargs)
+  File "/home1/05797/tg850969/.local/lib/python2.7/site-packages/tensorflow/python/keras/engine/network.py", line 78, in __init__
+    self._init_graph_network(*args, **kwargs)
+  File "/home1/05797/tg850969/.local/lib/python2.7/site-packages/tensorflow/python/keras/engine/network.py", line 244, in _init_graph_network
+    self.inputs, self.outputs)
+  File "/home1/05797/tg850969/.local/lib/python2.7/site-packages/tensorflow/python/keras/engine/network.py", line 1725, in _map_graph_network
+    str(all_names.count(name)) + ' times in the model. '
+ValueError: The name "lambda" is used 2 times in the model. All layer names should be unique.
