@@ -16,7 +16,7 @@ a) keras_rnn_run : Keras program to optimize hyperparameters and create a Keras 
                    model with ConvLSTM2D layers (LSTM cell with convolutional IO). Currently 
                    accepts RGB 128x128 images and torque/roll/pitch data from a spreadsheet.
                            
-##### How to use keras_rnn_run:
+# How to use keras_rnn_run:
 
 1. Clone this repository
 
