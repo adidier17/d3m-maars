@@ -26,9 +26,14 @@ a) keras_rnn_run : Keras program to optimize hyperparameters and create a Keras 
 
 4. You will now need to preprocess your data with keras_data_gathering.py. You must first edit this script and find
 the variable "paths." Change this variable to the paths of all the orthoimage datasets you downloaded. If you downloaded
-all 3 datasets, you can link all three, or else you can link to just the ones you downloaded. Once you've set your
-"paths" variable you can run the script. It will take a while because it's converting all the images into a numpy array and
-will save them in your current directory.
+all 3 datasets, you can link all three, or else you can link to just the ones you downloaded. If you only download one however, you will need to change your for loop to look like this:
+
+ ```
+  for root, dirs, files in (os.walk('orthoimage')): 
+  
+```
+ 
+Once you've set your "paths" variable you can run the script. It will take a while because it's converting all the images into a numpy array and will save them in your current directory.
 
 5. Once you've generated your numpy array files, you can run hyperparameter optimization via keras_rnn_run.py. Edit the script and find the variables "imageArray", "torque", "roll", and "pitch". Set each of these to the name of the numpy arrays generated in Step d. You may also need to tune the variables "crossValidation" and "testingSet." Depending on which dataset you chose,
 it may have more or less images than the others. You may want to add a print statement to view the length of your data and
