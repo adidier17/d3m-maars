@@ -2,38 +2,17 @@
 import pandas as panda
 import imageio
 import os
-import tensorflow as tf
 import numpy as np
 import random
-import matplotlib.pyplot as plt
-from tensorflow.python import debug as tf_debug
 from numbers import Number
 import pdb
 import re
 # For parameter tuning
 import math
 
-# Keras
-from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import InputLayer, Input, BatchNormalization
-from tensorflow.python.keras.layers import Reshape, MaxPooling2D, Lambda
-from tensorflow.python.keras.layers import Conv2D, Dense, Flatten, ConvLSTM2D
-from tensorflow.python.keras.callbacks import TensorBoard
-from tensorflow.python.keras.optimizers import Adam
-from tensorflow.python.keras.models import save_model, load_model
-from tensorflow.contrib import rnn
 from itertools import chain
 
-# Scikit Optimizer
-import skopt
-from skopt import gp_minimize, forest_minimize
-from skopt.space import Real, Categorical, Integer
-from skopt.utils import use_named_args
-
-from multiprocessing import Pool, cpu_count
-
-# Set image directory, only png's
+# Set orthoimage directory
 #paths = ('merged_2018-08-29-12-36-26/orthoimage')
 paths = ('merged_2018-04-09-14-28-11/orthoimage', 'merged_2018-05-10-14-30-07/orthoimage', 'merged_2018-07-13-13-03-27/orthoimage', 'merged_2018-07-13-13-39-03/orthoimage')
 # For the imageList, every index will represent
@@ -61,9 +40,16 @@ for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
     index = 0
 
     print root;
+
+    # Manually check your data to see where the image sequences start and end
+    # Check the motor_DRF file for 0/NaN values at the beginning and end
+    # Check the pose.csv file for 0/NaN values at the beginning and end
+    # Select a start and finish index accordingly
     mindex = (int)(raw_input('Enter first index to start collecting data: '))
     maxdex = (int)(raw_input('Enter maximum index to crawl to: '))
 
+    # Motor_DRF and Pose.csv files need to be in the path specified in your 
+    # "paths" variable above
     # Get the torques for this new directory of mages
     tp=os.path.join(root,'motor_DRF.csv')
     pose=os.path.join(root,'pose.csv')
@@ -124,44 +110,7 @@ for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
 
     print len(filteredFiles) 
     imageList = pool.map(readImage, filteredFiles)
-    #for chunkIndex in xrange(0, len(sorted(filteredFiles)), 32):
-    #for filename in sorted(files):
 	
-#	if (True) :
-            # Read the current image and update the previous sample id var
-#     imageList = pool.map(readImage, filteredFiles)
-#     imageList = pool.map(rgb2gray, imageList)
-	  
-            # Get the sample id
-            # sampleid = (filename.split('_'))[0]
-            # sampleid = (int)(re.sub('(s0*)', '', sampleid))
-	   
-#	    if (sampleid != oldsampleid) :
-	
-#		    print gray[0][0].shape
-#		    print gray[0][0]
-#	            imageList.append(gray)
-# 		    correspondingTorque.append(float(csvtorque[sampleid]))
-#		    if (sampleid > 510 and index < 11733) :
-#	            	correspondingRoll.append(float(csvroll[sampleid]))
-#		    	correspondingPitch.append(float(csvpitch[sampleid]))
-#       	    imageList.append(gray)
-#                    	correspondingTorque.append(float(csvtorque[sampleid]))
-#		    else: 
-#	               	correspondingRoll.append(float(0))
-#                	correspondingPitch.append(float(0))
-#		    if (index > 5830):
-#			print sampleid
-#			print (float(csvroll[sampleid]))
-#			print (float(csvpitch[sampleid]))
-#			print float(csvtorque[sampleid])
-#			correspondingTorque.append(float(csvtorque[sampleid]))
-	         
-#                    index += 1
-
-#	    oldsampleid = sampleid
-#           index += 1
-
     # Convert imagelist into numpy array
     imageArray = np.asarray(imageList, dtype=np.float32)
     print(len(imageArray))
@@ -181,8 +130,6 @@ for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
 
     roll = np.asarray(correspondingRoll, dtype=np.float32)
     pitch = np.asarray(correspondingPitch, dtype=np.float32)
-#    print len(roll)
-#    print len(pitch)
 
     np.save(rollPath, roll)
     np.save(pitchPath, pitch)

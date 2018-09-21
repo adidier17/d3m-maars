@@ -30,6 +30,8 @@ from skopt import gp_minimize, forest_minimize
 from skopt.space import Real, Categorical, Integer
 from skopt.utils import use_named_args
 
+# This is where you set your hyperparameters for the model
+
 # Hyperparameter tuning
 dim_learning_rate = Real(low=1e-5, high=1e-3, prior='log-uniform',
                          name='learning_rate')
@@ -183,9 +185,9 @@ def create_model(learning_rate, num_dense_layers,
         input_next = (ConvLSTM2D(kernel_size=kernel_size, input_shape=(sequence_length, img_width*pow(0.5, j), img_width*pow(0.5, j), filters), strides=1, 
                         filters=num_filters, padding='same', activation="relu", name=name,
                         return_sequences=True))(input_next)
-	input_next = (MaxPooling3D(pool_size=(1, 4, 4), strides=None, padding='same', data_format=None))(input_next)
+	    input_next = (MaxPooling3D(pool_size=(1, 4, 4), strides=None, padding='same', data_format=None))(input_next)
         input_next = (BatchNormalization(input_shape=(sequence_length, img_width*pow(0.5, i+2), img_width*pow(0.5, i+2), num_filters)))(input_next)
-	j += 2
+	    j += 2
     #input_shape=(img_width, img_width, num_filters)
 
     # Flatten the 4-rank output of the convolutional layers
@@ -231,15 +233,13 @@ def create_model(learning_rate, num_dense_layers,
 #    pitch = (Lambda(scaleDown))(pitch)  
     x = concatenate([input_next, roll, pitch], axis=2)
     input_next = x;
-    for i in range(num_dense_layers):
+
+    for i in range(num_dense_layers-1):
         name = 'layer_denselstm_{0}'.format(i+1)
 
-	input_next = CuDNNLSTM(3, input_shape=(sequence_length, 3), return_sequences=True, name=name)(input_next)
-    
-    if (num_dense_layers > 0) :
+        input_next = CuDNNLSTM(3, input_shape=(sequence_length, 3), return_sequences=True, name=name)(input_next)
+
 	predictions = CuDNNLSTM(1, input_shape=(sequence_length, 3), return_sequences=True, name="predictions")(input_next)
-    else :
-	predictions = (TimeDistributed(Dense(1, activation="linear", name="predictions", input_shape=(None, 30, 3))))(input_next)
 
     # Use the Adam method for training the network.
     # We want to find the best learning-rate for the Adam method.
@@ -320,7 +320,7 @@ def fitness(learning_rate, num_dense_layers,
                         y=torque[0:crossValidation],
                         epochs=num_epochs,
                         batch_size=15,
-			shuffle=False,
+			            shuffle=False,
                         validation_data=validation_data,
                         callbacks=[callback_log])
 

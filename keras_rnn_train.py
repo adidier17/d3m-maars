@@ -24,22 +24,6 @@ from tensorflow.python.keras.optimizers import Adam
 from tensorflow.python.keras.models import save_model, load_model, Model
 from tensorflow.python.keras.utils import plot_model, multi_gpu_model
 from sklearn.preprocessing import MinMaxScaler
-# Scikit Optimizer
-import skopt
-from skopt import gp_minimize, forest_minimize
-from skopt.space import Real, Categorical, Integer
-from skopt.utils import use_named_args
-
-#import horovod.keras as hvd
-
-# Horovod: initialize Horovod.
-#hvd.init()
-
-# Horovod: pin GPU to be used to process local rank (one GPU per process)
-#config = tf.ConfigProto()
-#config.gpu_options.allow_growth = True
-#config.gpu_options.visible_device_list = str(hvd.local_rank())
-#K.set_session(tf.Session(config=config))
 
 index = 0
 paths = ('merged_2018-04-09-14-28-11/orthoimage', 'merged_2018-05-10-14-30-07/orthoimage', 'merged_2018-07-13-13-03-27/orthoimage', 'merged_2018-07-13-13-39-03/orthoimage')
@@ -94,20 +78,14 @@ for (path in paths):
 	crossValidation = index-75
 	testingSet = index-25
 
-	#np.save('april_orthoimage_timeseries_images', imageArray)
-
 	valid_inputs = {}
 	valid_inputs['images'] = imageArray[crossValidation:testingSet]
 	valid_inputs['roll'] = roll[crossValidation:testingSet]
 	valid_inputs['pitch'] = pitch[crossValidation:testingSet]
-	#validation_data = (imageArray[testingSet:crossValidation], torque[testingSet:crossValidation])
 	validation_data = (valid_inputs, torque[crossValidation:testingSet])
 
 	pathy = os.environ["HOME"]
-	#path_best_model = '{}/08_23_keras_rnn_pose_best_model_mayonedata.keras'.format(pathy)
 	path_best_model = '{}/09_14_keras_rnn_pose_model_reevaluation.keras'.format(pathy)
-	#print path_best_model
-	#best_hyperparameters = '{}/7_24_best_rnn_pose_hyperparameters'.format(pathy)
 	best_accuracy = 1
 
 	data_inputs = {}
@@ -138,23 +116,5 @@ for (path in paths):
 
 	path_new_model = '{}/09_17_keras_rnn_with_{}.keras'.format(pathy, path)
 	model.save(path_new_model)
-
-
-	#test_inputs = {}
-	#test_inputs['roll'] = roll[testingSet:index]
-	#test_inputs['pitch'] = pitch[testingSet:index]
-	#test_inputs['images'] = imageArray[testingSet:index]
-	#score = parallel_model.predict(x=test_inputs)
-
-	#print score
-	# Need to transpose to create row by column matrix
-	#torque = np.transpose(torque)
-	#torque = np.reshape(torque, (-1, 1))
-
-	# Take the absolute value because we have negative torque values
-	#torque = np.absolute(torque)
-
-	#print torque[testingSet:index]
-	#print score
 
 
