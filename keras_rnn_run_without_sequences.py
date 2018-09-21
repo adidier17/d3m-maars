@@ -17,7 +17,7 @@ import math
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import InputLayer, Input, concatenate, BatchNormalization
-from tensorflow.python.keras.layers import Reshape, MaxPooling3D, Lambda, TimeDistributed
+from tensorflow.python.keras.layers import Reshape, MaxPooling2D, Lambda, TimeDistributed
 from tensorflow.python.keras.layers import Conv2D, Dense, Flatten, CuDNNLSTM, ConvLSTM2D 
 from tensorflow.python.keras.callbacks import TensorBoard
 from tensorflow.python.keras.optimizers import Adam
@@ -67,7 +67,7 @@ def log_dir_name(learning_rate, num_dense_layers,
 
     return log_dir
 
-default_parameters = [1e-3, 2, 50, 3, 5, 32]
+default_parameters = [1e-3, 0, 50, 1, 5, 32]
 
 # We know that MNIST images are 128 pixels in each dimension.
 img_width = 128
@@ -103,7 +103,7 @@ real_pitch_array = []
 real_torque_array = []
 
 sequence_length = 30
-scaler = MinMaxScaler(feature_range=(0.001, 1.0))
+scaler = MinMaxScaler(feature_range=(0.0, 1.0))
 
 for i in xrange(0,len(imageArray)-1,sequence_length):
         if (i > 29):
@@ -118,14 +118,13 @@ for i in xrange(0,len(imageArray)-1,sequence_length):
                 real_image_array.append(sample_batch)
                 real_roll_array.append(sample_roll)
                 real_pitch_array.append(sample_pitch)
-		sample_torque = (torque[i-sequence_length:i])
-                real_torque_array.append(sample_torque)
+                real_torque_array.append(torque[i])
 
 imageArray = np.asarray(real_image_array, dtype=np.float32)
 roll = np.asarray(real_roll_array, dtype=np.float32)
 pitch = np.asarray(real_pitch_array, dtype=np.float32)
 torque = np.asarray(real_torque_array, dtype=np.float32)
-print torque.shape
+
 crossValidation = index-100
 testingSet = index-50
 
@@ -171,7 +170,6 @@ def create_model(learning_rate, num_dense_layers,
     #         factor = 2*i
 
     filters = 0
-    j = 0
     for i in range(num_conv_layers):
         name = 'layer_convlstm_{0}'.format(i+1)
         
@@ -180,12 +178,11 @@ def create_model(learning_rate, num_dense_layers,
         else:
             filters = num_filters
 
-        input_next = (ConvLSTM2D(kernel_size=kernel_size, input_shape=(sequence_length, img_width*pow(0.5, j), img_width*pow(0.5, j), filters), strides=1, 
+        input_next = (ConvLSTM2D(kernel_size=kernel_size, input_shape=(sequence_length, img_width, img_width, filters), strides=1, 
                         filters=num_filters, padding='same', activation="relu", name=name,
                         return_sequences=True))(input_next)
-	input_next = (MaxPooling3D(pool_size=(1, 4, 4), strides=None, padding='same', data_format=None))(input_next)
-        input_next = (BatchNormalization(input_shape=(sequence_length, img_width*pow(0.5, i+2), img_width*pow(0.5, i+2), num_filters)))(input_next)
-	j += 2
+        input_next = (BatchNormalization(input_shape=(sequence_length, img_width, img_width, num_filters)))(input_next)
+
     #input_shape=(img_width, img_width, num_filters)
 
     # Flatten the 4-rank output of the convolutional layers
@@ -208,8 +205,7 @@ def create_model(learning_rate, num_dense_layers,
 
     # Last fully-connected / dense layer with linear-activation
     # for use in classification. 
-    input_next = (TimeDistributed(Dense(0.5*num_filters*img_width*img_width*pow(0.5, num_conv_layers*4), activation="linear", input_shape=(sequence_length, num_filters*img_width*img_width*pow(0.5, num_conv_layers*4)))))(input_next)
-    input_next = (TimeDistributed(Dense(1, activation="linear", input_shape=(sequence_length, 0.5*num_filters*img_width*img_width*pow(0.5, num_conv_layers*4)))))(input_next)
+    input_next = (TimeDistributed(Dense(1, activation="linear"), input_shape=(sequence_length, num_filters*img_width*img_width)))(input_next)
 
     def scaleDown(x):
         import tensorflow as tf
@@ -230,16 +226,17 @@ def create_model(learning_rate, num_dense_layers,
 #    roll = (Lambda(scaleDown))(roll)
 #    pitch = (Lambda(scaleDown))(pitch)  
     x = concatenate([input_next, roll, pitch], axis=2)
-    input_next = x;
+
     for i in range(num_dense_layers):
         name = 'layer_denselstm_{0}'.format(i+1)
 
-	input_next = CuDNNLSTM(3, input_shape=(sequence_length, 3), return_sequences=True, name=name)(input_next)
+	input_next = CuDNNLSTM(3, input_shape=(sequence_length, 3), return_sequences=True, name=name)(x)
     
-    if (num_dense_layers > 0) :
-	predictions = CuDNNLSTM(1, input_shape=(sequence_length, 3), return_sequences=True, name="predictions")(input_next)
+    if (num_dense_layers == 0) :
+	input_next = CuDNNLSTM(1, input_shape=(sequence_length, 1), name="LSTM_aggregation")(input_next)
+	predictions = (Dense(1, activation="linear", name="predictions", input_shape=(None, 1)))(input_next) 
     else :
-	predictions = (TimeDistributed(Dense(1, activation="linear", name="predictions", input_shape=(None, 30, 3))))(input_next)
+	predictions = (Dense(1, activation="linear", name="predictions", input_shape=(None,3)))(input_next)
 
     # Use the Adam method for training the network.
     # We want to find the best learning-rate for the Adam method.
@@ -253,9 +250,9 @@ def create_model(learning_rate, num_dense_layers,
     return model
 
 pathy = os.environ["HOME"]
-path_best_model = '{}/09_14_keras_rnn_pose_model_reevaluation.keras'.format(pathy)
+path_best_model = '{}/09_10_keras_rnn_pose_model_reevaluation.keras'.format(pathy)
 print path_best_model
-best_hyperparameters = '{}/09_14_keras_rnn_pose_model_reevaluation_hyperparameters'.format(pathy)
+best_hyperparameters = '{}/09_10_keras_rnn_pose_model_reevaluation_hyperparameters'.format(pathy)
 best_accuracy = 1
 
 @use_named_args(dimensions=dimensions)

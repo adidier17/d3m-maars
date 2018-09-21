@@ -17,7 +17,7 @@ import math
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import InputLayer, Input, concatenate, BatchNormalization
-from tensorflow.python.keras.layers import Reshape, MaxPooling3D, Lambda, TimeDistributed
+from tensorflow.python.keras.layers import Reshape, MaxPooling2D, Lambda, TimeDistributed
 from tensorflow.python.keras.layers import Conv2D, Dense, Flatten, CuDNNLSTM, ConvLSTM2D 
 from tensorflow.python.keras.callbacks import TensorBoard
 from tensorflow.python.keras.optimizers import Adam
@@ -30,16 +30,26 @@ from skopt import gp_minimize, forest_minimize
 from skopt.space import Real, Categorical, Integer
 from skopt.utils import use_named_args
 
+import horovod.keras as hvd
+
+# Horovod: initialize Horovod.
+hvd.init()
+
+# Horovod: pin GPU to be used to process local rank (one GPU per process)
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+config.gpu_options.visible_device_list = str(hvd.local_rank())
+K.set_session(tf.Session(config=config))
+
+
 # Hyperparameter tuning
-dim_learning_rate = Real(low=1e-5, high=1e-3, prior='log-uniform',
+dim_learning_rate = Real(low=1e-6, high=1e-2, prior='log-uniform',
                          name='learning_rate')
 
 
-dim_num_dense_layers = Integer(low=0, high=2, name='num_dense_layers')
+dim_num_dense_layers = Integer(low=50, high=250, name='num_dense_layers')
 
-dim_num_epochs = Integer(low=50, high=250, name='num_epochs')
-
-dim_num_conv_layers = Integer(low=1, high=4, name='num_conv_layers')
+dim_num_conv_layers = Integer(low=1, high=2, name='num_conv_layers')
 
 dim_kernel_size = Integer(low=3, high=10, name='kernel_size')
 
@@ -47,7 +57,6 @@ dim_num_filters = Integer(low=16, high=64, name='num_filters')
 
 dimensions = [dim_learning_rate,
               dim_num_dense_layers,
-	      dim_num_epochs,
               dim_num_conv_layers,
               dim_kernel_size,
               dim_num_filters]
@@ -56,7 +65,7 @@ def log_dir_name(learning_rate, num_dense_layers,
                  num_conv_layers, kernel_size, num_filters):
 
     # The dir-name for the TensorBoard log-dir.
-    s = "./724_keras_rnn_logs/lr_{0:.0e}_layers_{1}_nodes_{2}_{3}_{4}/"
+    s = "./725_keras_rnn_test_logs/lr_{0:.0e}_layers_{1}_nodes_{2}_{3}_{4}/"
 
     # Insert all the hyper-parameters in the dir-name.
     log_dir = s.format(learning_rate,
@@ -67,7 +76,7 @@ def log_dir_name(learning_rate, num_dense_layers,
 
     return log_dir
 
-default_parameters = [1e-3, 2, 50, 3, 5, 32]
+default_parameters = [1e-3, 50, 1, 5, 32]
 
 # We know that MNIST images are 128 pixels in each dimension.
 img_width = 128
@@ -103,31 +112,40 @@ real_pitch_array = []
 real_torque_array = []
 
 sequence_length = 30
-scaler = MinMaxScaler(feature_range=(0.001, 1.0))
+scaler = MinMaxScaler(feature_range=(0.0, 1.0))
 
 for i in xrange(0,len(imageArray)-1,sequence_length):
-        if (i > 29):
-                sample_batch = imageArray[i-sequence_length:i]
-                sample_batch = np.expand_dims(sample_batch, axis=3)
-                sample_roll = roll[i-sequence_length:i]
-                sample_roll = np.absolute(np.expand_dims(sample_roll, axis=1))
-                scaler.fit(sample_roll)
-                sample_pitch = (pitch[i-sequence_length:i])
-                sample_pitch = np.absolute(np.expand_dims(sample_pitch, axis=1))
-                scaler.fit(sample_pitch)
-                real_image_array.append(sample_batch)
-                real_roll_array.append(sample_roll)
-                real_pitch_array.append(sample_pitch)
-		sample_torque = (torque[i-sequence_length:i])
-                real_torque_array.append(sample_torque)
+	if (i > 29):
+		sample_batch = imageArray[i-sequence_length:i]
+		sample_batch = np.expand_dims(sample_batch, axis=3)
+		sample_roll = roll[i-sequence_length:i]
+		sample_roll = np.absolute(np.expand_dims(sample_roll, axis=1))
+         	scaler.fit(sample_roll)
+		sample_pitch = (pitch[i-sequence_length:i])
+		sample_pitch = np.absolute(np.expand_dims(sample_pitch, axis=1))
+		scaler.fit(sample_pitch)
+		real_image_array.append(sample_batch)
+		real_roll_array.append(sample_roll)
+		real_pitch_array.append(sample_pitch)
+		real_torque_array.append(torque[i])
 
 imageArray = np.asarray(real_image_array, dtype=np.float32)
 roll = np.asarray(real_roll_array, dtype=np.float32)
 pitch = np.asarray(real_pitch_array, dtype=np.float32)
 torque = np.asarray(real_torque_array, dtype=np.float32)
+
+index = len(torque)
+print index
+print len(imageArray)
+print len(roll)
+print len(pitch)
+print imageArray.shape
+print roll.shape
+print pitch.shape
 print torque.shape
-crossValidation = index-100
-testingSet = index-50
+
+crossValidation = index-10
+testingSet = index-5
 
 #np.save('april_orthoimage_timeseries_images', imageArray)
 
@@ -139,7 +157,7 @@ valid_inputs['pitch'] = pitch[crossValidation:testingSet]
 validation_data = (valid_inputs, torque[crossValidation:testingSet])
 
 def create_model(learning_rate, num_dense_layers,
-                 num_epochs, num_conv_layers, kernel_size, num_filters):
+                 num_conv_layers, kernel_size, num_filters):
     """
     Hyper-parameters:
     learning_rate:     Learning-rate for the optimizer.
@@ -171,7 +189,6 @@ def create_model(learning_rate, num_dense_layers,
     #         factor = 2*i
 
     filters = 0
-    j = 0
     for i in range(num_conv_layers):
         name = 'layer_convlstm_{0}'.format(i+1)
         
@@ -180,12 +197,11 @@ def create_model(learning_rate, num_dense_layers,
         else:
             filters = num_filters
 
-        input_next = (ConvLSTM2D(kernel_size=kernel_size, input_shape=(sequence_length, img_width*pow(0.5, j), img_width*pow(0.5, j), filters), strides=1, 
+        input_next = (ConvLSTM2D(kernel_size=kernel_size, input_shape=(sequence_length, img_width, img_width, filters), strides=1, 
                         filters=num_filters, padding='same', activation="relu", name=name,
                         return_sequences=True))(input_next)
-	input_next = (MaxPooling3D(pool_size=(1, 4, 4), strides=None, padding='same', data_format=None))(input_next)
-        input_next = (BatchNormalization(input_shape=(sequence_length, img_width*pow(0.5, i+2), img_width*pow(0.5, i+2), num_filters)))(input_next)
-	j += 2
+        input_next = (BatchNormalization(input_shape=(sequence_length, img_width, img_width, num_filters)))(input_next)
+
     #input_shape=(img_width, img_width, num_filters)
 
     # Flatten the 4-rank output of the convolutional layers
@@ -208,8 +224,7 @@ def create_model(learning_rate, num_dense_layers,
 
     # Last fully-connected / dense layer with linear-activation
     # for use in classification. 
-    input_next = (TimeDistributed(Dense(0.5*num_filters*img_width*img_width*pow(0.5, num_conv_layers*4), activation="linear", input_shape=(sequence_length, num_filters*img_width*img_width*pow(0.5, num_conv_layers*4)))))(input_next)
-    input_next = (TimeDistributed(Dense(1, activation="linear", input_shape=(sequence_length, 0.5*num_filters*img_width*img_width*pow(0.5, num_conv_layers*4)))))(input_next)
+    input_next = (TimeDistributed(Dense(1, activation="linear"), input_shape=(sequence_length, num_filters*img_width*img_width)))(input_next)
 
     def scaleDown(x):
         import tensorflow as tf
@@ -230,16 +245,8 @@ def create_model(learning_rate, num_dense_layers,
 #    roll = (Lambda(scaleDown))(roll)
 #    pitch = (Lambda(scaleDown))(pitch)  
     x = concatenate([input_next, roll, pitch], axis=2)
-    input_next = x;
-    for i in range(num_dense_layers):
-        name = 'layer_denselstm_{0}'.format(i+1)
-
-	input_next = CuDNNLSTM(3, input_shape=(sequence_length, 3), return_sequences=True, name=name)(input_next)
-    
-    if (num_dense_layers > 0) :
-	predictions = CuDNNLSTM(1, input_shape=(sequence_length, 3), return_sequences=True, name="predictions")(input_next)
-    else :
-	predictions = (TimeDistributed(Dense(1, activation="linear", name="predictions", input_shape=(None, 30, 3))))(input_next)
+    input_next = CuDNNLSTM(3, input_shape=(sequence_length, 3), name="LSTM_aggregation")(x)
+    predictions = (Dense(1, activation="linear", name="predictions", input_shape=(None,3)))(input_next)
 
     # Use the Adam method for training the network.
     # We want to find the best learning-rate for the Adam method.
@@ -253,122 +260,77 @@ def create_model(learning_rate, num_dense_layers,
     return model
 
 pathy = os.environ["HOME"]
-path_best_model = '{}/09_14_keras_rnn_pose_model_reevaluation.keras'.format(pathy)
-print path_best_model
-best_hyperparameters = '{}/09_14_keras_rnn_pose_model_reevaluation_hyperparameters'.format(pathy)
+path_best_model = '{}/08_23_keras_rnn_pose_best_model_mayonedata.keras'.format(pathy)
+#print path_best_model
+#best_hyperparameters = '{}/7_24_best_rnn_pose_hyperparameters'.format(pathy)
 best_accuracy = 1
 
-@use_named_args(dimensions=dimensions)
-def fitness(learning_rate, num_dense_layers,
-            num_epochs, num_conv_layers, kernel_size, num_filters):
-    """
-    Hyper-parameters:
-    learning_rate:     Learning-rate for the optimizer.
-    num_dense_layers:  Number of dense layers.
-    num_conv_layers:   Number of nodes in each conv layer.
-    kernel_size:        kernel_size function for all layers.
-    num_filters:       Number of Filters
-    """
+data_inputs = {}
+data_inputs['images'] = imageArray[0:crossValidation]
+data_inputs['roll'] = roll[0:crossValidation]
+data_inputs['pitch'] = pitch[0:crossValidation]
 
-    # Print the hyper-parameters.
-    print('learning rate: {0:.1e}'.format(learning_rate))
-    print('num_dense_layers:', num_dense_layers)
-    print('num_conv_layers:', num_conv_layers)
-    print('kernel_size:', kernel_size)
-    print('num_filters:', num_filters)
-    print()
-    
-    # Create the neural network with these hyper-parameters.
-    model = create_model(learning_rate=learning_rate,
-                         num_dense_layers=num_dense_layers,
-			 num_epochs=num_epochs,
-                         num_conv_layers=num_conv_layers,
-                         kernel_size=kernel_size,
-                         num_filters=num_filters)
+epochs = int(math.ceil(12.0 / hvd.size()))
 
-    # Dir-name for the TensorBoard log-files.
-    log_dir = log_dir_name(learning_rate, num_dense_layers,
-                           num_conv_layers, kernel_size, num_filters)
-    
-    # Create a callback-function for Keras which will be
-    # run after each epoch has ended during training.
-    # This saves the log-files for TensorBoard.
-    # Note that there are complications when histogram_freq=1.
-    # It might give strange errors and it also does not properly
-    # support Keras data-generators for the validation-set.
-    callback_log = TensorBoard(
-        log_dir=log_dir,
-        batch_size=16,
-        write_graph=True,
-        write_grads=False,
-        write_images=False)
-   
-    # Use Keras to train the model.
-    #checker = torque[crossValidation:index]
-    data_inputs = {}
-    data_inputs['images'] = imageArray[0:crossValidation]
-    data_inputs['roll'] = roll[0:crossValidation]
-    data_inputs['pitch'] = pitch[0:crossValidation]
+print len(pitch[0:crossValidation])
+print len(torque[0:crossValidation])
 
-    parallel_model = multi_gpu_model(model, gpus=4)
-    optimizer = Adam(lr=learning_rate, clipnorm=1.0, clipvalue=0.5)
-    parallel_model.compile(optimizer=optimizer,
+model = load_model(path_best_model)
+#parallel_model = multi_gpu_model(model, gpus=4)
+opt = Adam(lr=1.0 * hvd.size(), clipnorm=1.0, clipvalue=5)
+
+# Horovod: add Horovod Distributed Optimizer.
+opt = hvd.DistributedOptimizer(opt)
+
+#parallel_model = model
+model.compile(optimizer=opt,
                   loss='mean_squared_error',
                   metrics=['mse'])
- 
-    history = parallel_model.fit(x=data_inputs,
-                        y=torque[0:crossValidation],
-                        epochs=num_epochs,
-                        batch_size=15,
-			shuffle=False,
-                        validation_data=validation_data,
-                        callbacks=[callback_log])
 
-    # Get the classification accuracy on the validation-set
-    # after the last training-epoch.
+callbacks = [
+    # Horovod: broadcast initial variable states from rank 0 to all other processes.
+    # This is necessary to ensure consistent initialization of all workers when
+    # training is started with random weights or restored from a checkpoint.
+    hvd.callbacks.BroadcastGlobalVariablesCallback(0),
+]
 
-    accuracy = history.history['val_loss'][-1]
+history = model.fit(x=data_inputs,
+		y=torque[0:crossValidation],
+                epochs=epochs,
+                batch_size=128,
+		callbacks=callbacks,
+                validation_data=validation_data)
 
-    # Print the classification accuracy.
-    print()
-    print("Error: {}".format(accuracy))
-    print()
-
-    # Save the model if it improves on the best-found performance.
-    # We use the global keyword so we update the variable outside
-    # of this function.
-    global best_accuracy
-
-    # If the classification accuracy of the saved model is improved ...
-    if accuracy < best_accuracy:
-        # Save the new model to harddisk.
-        model.save(path_best_model)
-        
-        # Update the classification accuracy.
-        best_accuracy = accuracy
-
-    # Delete the Keras model with these hyper-parameters from memory.
-    del model
-    
-    # Clear the Keras session, otherwise it will keep adding new
-    # models to the same TensorFlow graph each time we create
-    # a model with a different set of hyper-parameters.
-    K.clear_session()
-    
-    # NOTE: Scikit-optimize does minimization so it tries to
-    # find a set of hyper-parameters with the LOWEST fitness-value.
-    # Because we are interested in the HIGHEST classification
-    # accuracy, we need to negate this number so it can be minimized.
-    return accuracy
+path_new_model = '{}/08_31_keras_rnn_pose_horovod_best_model_merged_2018-08-29-12-36-26.keras'.format(pathy)
+model.save(path_new_model)
 
 
-fitness(x=default_parameters)
-search_result = gp_minimize(func=fitness,
-                             dimensions=dimensions,
-                             acq_func='EI', # Expected Improvement.
-                             n_calls=50,
-                             x0=default_parameters)
+test_inputs = {}
+test_inputs['roll'] = roll[testingSet:index]
+test_inputs['pitch'] = pitch[testingSet:index]
+test_inputs['images'] = imageArray[testingSet:index]
+score = parallel_model.predict(x=test_inputs)
+#torque = np.load('april_orthoimage_DEBUG_torque.npy')
 
-print search_result.x
+#print score
+# Need to transpose to create row by column matrix
+#torque = np.transpose(torque)
+#torque = np.reshape(torque, (-1, 1))
+
+# Take the absolute value because we have negative torque values
+#torque = np.absolute(torque)
+
+print torque[testingSet:index]
+print score
+
+
+#fitness(x=default_parameters)
+#search_result = gp_minimize(func=fitness,
+#                             dimensions=dimensions,
+#                             acq_func='EI', # Expected Improvement.
+#                             n_calls=50,
+#                             x0=default_parameters)
+
+#print search_result.x
 
 
